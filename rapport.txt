@@ -1,0 +1,204 @@
+KEPPEL Arnaud L3S5 Info SC.
+
+Rapport de projet.
+
+	Introduction :
+		
+	Les moyens de communcation utilisés sont la mémoire partagée et les signaux
+	pour la communication inter-processus.
+	
+	La mémoire partagée pour permettre les intéractions sur les données entre
+	différents processus. Par exemple la modification de la structure partagée
+	(voir plus loin pour les détails).
+	
+--------------------------------------------------------------------------------
+
+	Pseudo codes :
+		
+		Je détaille volontairement la version1, les deux suivantes ne différents 
+		pas beaucoup (sur le code tout du moins).
+		
+	Variante 1 :
+		
+		PO et P1 sont OK, les passagers sont protégés par les sémaphores.
+		S'il n'y a pas de place l'accès leur sera refusé, sinon l'ascenseur leur
+		assure de ressortir en ouvrant et fermant ses portes de manière adéquate.
+				
+	Ascenseur :
+		
+	Création d'un objet en mémoire de type POSIX (shm_open)
+	Troncature et mapping mémoire de la structure partagée (ftruncate, mmap)
+	
+	Initialisation des variables de l'ascenseur (tableaux entrée/sortie,
+	 passagers, etage en cours, variable d'appel)
+	 
+	 Création des sémaphores passagers, portes et tableau
+	  (sem_init, les 3 sont binaires)
+	 
+	 Fermeture des portes (sem_wait sur sémaphore des portes)
+	 
+	 Tant que SIGUSR n'est pas reçu :
+	 
+	 		Pour i allant de 0 à MAX_ETAGES (boucle de montée)
+	 			
+	 			Actualisation de l'étage en cours
+	 			Affichage des appels (fct dédiées : affiche_appels,affiche_sorties)
+	 			
+	 			Si un appel est fait (fct dédiée : check_entrée)
+	 				Le processus se place en écrivain sur les données de la structure
+	 				(sem_wait sur le sémaphore qui est dédiée au tableau)
+	 				Reset de la case d'appel pour cet étage
+	 				Le processus libère l'accès aux données de la structure
+	 				(sem_post sur le sémaphore du tableau)		
+	 				Ouverture des portes (sem_post sémaphore des portes)
+	 			  Fermeture des portes (sem_wait sémaphore des portes)
+	 			  
+	 			Sinon si un passager veut sortir (avec la fonction check_sortie)
+	 				Le processus se place en écrivain sur les données de la structure
+	 				(sem_wait sur le sémaphore qui est dédiée au tableau)
+	 				Reset de la case des sorties pour cet étage
+	 				Le processus libère l'accès aux données de la structure
+	 				(sem_post sur le sémaphore du tableau)
+	 				Ouverture des portes (sem_post sémaphore des portes)
+	 			  Fermeture des portes (sem_wait sémaphore des portes)
+	 			  
+	 		 	Sinon affichage usuel
+	 			
+	 		Pour j allant de MAX_ETAGES à 0 (boucle descente)
+	 		
+	 			Actualisation de l'étage en cours
+	 			Affichage des appels (fct dédiées : affiche_appels,affiche_sorties)
+	 			
+	 			Si un appel est fait (fct dédiée : check_entrée)
+	 				Le processus se place en écrivain sur les données de la structure
+	 				(sem_wait sur le sémaphore qui est dédiée au tableau)
+	 				Reset de la case d'appel pour cet étage
+	 				Le processus libère l'accès aux données de la structure
+	 				(sem_post sur le sémaphore du tableau)		
+	 				Ouverture des portes (sem_post sémaphore des portes)
+	 			  Fermeture des portes (sem_wait sémaphore des portes)
+	 			  
+	 			Sinon si un passager veut sortir (avec la fonction check_sortie)
+	 				Le processus se place en écrivain sur les données de la structure
+	 				(sem_wait sur le sémaphore qui est dédiée au tableau)
+	 				Reset de la case des sorties pour cet étage
+	 				Le processus libère l'accès aux données de la structure
+	 				(sem_post sur le sémaphore du tableau)
+	 				Ouverture des portes (sem_post sémaphore des portes)
+	 			  Fermeture des portes (sem_wait sémaphore des portes)
+	 			  
+	 			Sinon affichage usuel
+	
+	Libération des zones mémoires
+	 			
+	 			
+		
+	Passager :
+		
+		Ouverture d'un objet en mémoire de type POSIX (shm_open)
+		Accès mémoire à la structure partagée (mmap)
+		
+		Vérification du nombre de passagers (sem_wait sur sémaphore passagers)
+		Appel de l'ascenseur (fct dédiée : appel)
+		
+		Tant que l'ascenseur n'est pas à l'étage d'appel ET que les portes sont
+		fermées :
+			Attente  et récupération de la valeur des portes
+			 (fct : check_portes et fct etage_enc)
+			 
+		Appel de l'étage de sortie (fct : sortie)
+		
+		Tant que l'ascenseur n'est pas à l'étage de sortie ET que les portes sont
+		fermées :
+			Attente  et récupération de la valeur des portes
+			 (fct : check_portes et fct etage_enc)
+			 
+		Sortie de l'ascenseur (sem_post sémaphore passagers)
+		
+		Libération des zones mémoires
+		
+	
+	
+	Variante 2 :
+		
+		PO et P1 sont OK, les passagers sont protégés par les sémaphores.
+		L'ascenseur leur assure de ressortir en ouvrant et fermant
+		ses portes de manière adéquate.
+		
+		La variante 2 conserve 99 % du code de la variante 1 NEANMOINS pour le 
+		passager : 
+		
+		les instructions suivantes :
+
+--------------------------------------------------------------------------------
+			
+		 Vérification du nombre de passagers (sem_wait sur sémaphore passagers)
+		 
+		 Sortie de l'ascenseur (sem_post sémaphore passagers)
+		 
+--------------------------------------------------------------------------------		 
+		 
+		 sont simplement ignorées. Ceci permet à une infinité de passagers de 
+		 rentrer dans l'ascenseur.
+			
+	
+	Variante 3 :
+		
+		PO et P1 sont OK, les passagers sont protégés par les sémaphores.
+		S'il n'y a pas de place l'accès leur sera refusé, sinon l'ascenseur leur
+		assure de ressortir en ouvrant et fermant ses portes de manière adéquate.
+		
+		Seule différence notable :
+			
+		La variante 3 initialise la sémaphore des passagers avec une variable
+		globale modifiable pour l'utilisateur (via le fichier shared.h)
+		
+--------------------------------------------------------------------------------
+		
+		Le fichier shared.c :
+		
+		Les fonctions communes dans le fichier shared.c sont assez vite résumées.
+		En effet elles sont majoritairement très simples, elles permettent les
+		intéractions avec les données de la structure (shared_data) de manière 
+		sécurisée. Elles utilisent pour ça les sémaphores et s'assurent d'être le
+		seul processus écrivain et/ou lecteur au temps t de leur appel.
+		Elles utilisent pour ça majoritairement la sémaphore tableau qui a été
+		créé uniquement pour ça (elle est binaire).
+		Les fonctions sem_wait et sem_post font le reste
+	
+--------------------------------------------------------------------------------
+			
+	Difficultés rencontrées : 
+	
+	La plus stupide je dirais, du fait de ma non connaissance des sémaphores, 
+	j'ai commencé le projet avec les sémaphores POSIX pendant bien 2 ou 3 jours.
+
+	Le mapping mémoire était pas évident au début, beaucoup de segfault et cie
+	mais avec pas mal de patience et votre cours j'y suis parvenu.
+	
+	La gestion des portes avec les sémaphores étaient un peu "aléatoire" au début,
+	les passagers avaient tendance à rentrer et sortir comme à la foire.
+	Un renforcement des conditions d'entrée/sortie a été nécessaire.
+	
+	Pour être honnête le reste a assez bien roulé, j'y suis allé étape par étape
+	en écrivant les sémaphores une à une et le reste s'est relativement bien
+	déroulé.
+		
+		
+	J'ai sincèrement apprécié faire ce projet, le langage C étant un coup de coeur
+	dès le début.  
+			 
+		
+	
+	 		
+	 				
+	 				
+	 				
+	 				
+	 			
+	 			
+	 
+	 
+
+	
+	
